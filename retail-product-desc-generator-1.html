@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DescriptAI — Retail Product Description Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;0,9..144,800;1,9..144,300&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f5f0e8;
+  --bg2: #ede8de;
+  --surface: #faf7f2;
+  --surface2: #f0ebe0;
+  --ink: #1a1610;
+  --ink2: #3d3628;
+  --muted: #8a7e6e;
+  --muted2: #b5a99a;
+  --accent: #c84b2f;
+  --accent2: #2b6cb0;
+  --accent3: #276749;
+  --warn: #b7791f;
+  --border: #d6cec0;
+  --border2: #c4bab0;
+  --glow: rgba(200,75,47,0.12);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Outfit', sans-serif;
+  overflow: hidden;
+}
+
+/* NOISE TEXTURE */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.6;
+}
+
+/* TOPBAR */
+.topbar {
+  position: relative; z-index: 10;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 28px; height: 60px;
+  background: var(--ink);
+  border-bottom: 3px solid var(--accent);
+  flex-shrink: 0;
+}
+.brand {
+  font-family: 'Fraunces', serif;
+  font-size: 20px; font-weight: 800;
+  color: var(--bg);
+  display: flex; align-items: center; gap: 12px;
+  letter-spacing: -0.02em;
+}
+.brand-icon {
+  width: 34px; height: 34px;
+  background: var(--accent);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+}
+.brand-sub {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px; color: var(--muted2);
+  letter-spacing: 0.18em; font-weight: 300;
+  text-transform: uppercase; margin-top: 1px;
+}
+.status-pills { display: flex; gap: 8px; }
+.pill {
+  font-family: 'DM Mono', monospace; font-size: 9px;
+  padding: 5px 12px; border-radius: 20px;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  border: 1px solid rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.5);
+  display: flex; align-items: center; gap: 6px;
+}
+.pill.live { border-color: rgba(39,103,73,0.6); color: #68d391; background: rgba(39,103,73,0.15); }
+.pill-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; animation: blink 2s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+/* APP LAYOUT */
+.app { display: flex; flex-direction: column; height: 100vh; overflow: hidden; position: relative; z-index: 1; }
+.workspace { display: grid; grid-template-columns: 400px 1fr; flex: 1; overflow: hidden; min-height: 0; }
+
+/* LEFT PANEL */
+.left-panel {
+  display: flex; flex-direction: column;
+  border-right: 2px solid var(--border);
+  background: var(--surface); overflow: hidden;
+}
+.panel-header {
+  padding: 20px 22px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2); flex-shrink: 0;
+}
+.ph-label {
+  font-family: 'DM Mono', monospace; font-size: 9px;
+  letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 4px;
+}
+.ph-title {
+  font-family: 'Fraunces', serif; font-size: 16px;
+  font-weight: 600; color: var(--ink);
+}
+.panel-body { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 18px; }
+
+/* FIELDS */
+.field-label {
+  font-family: 'DM Mono', monospace; font-size: 9px;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 6px; display: block;
+}
+input[type=text], input[type=password], textarea, select {
+  width: 100%;
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  color: var(--ink);
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; padding: 10px 12px;
+  outline: none;
+  transition: border-color .2s, box-shadow .2s;
+  line-height: 1.7; resize: none;
+}
+input:focus, textarea:focus, select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--glow);
+}
+input::placeholder, textarea::placeholder { color: var(--muted2); }
+select option { background: var(--surface); }
+
+/* GRID INPUT */
+.input-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* TONE CHIPS */
+.tone-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+.tone-chip {
+  font-family: 'DM Mono', monospace; font-size: 9px;
+  padding: 5px 12px; border-radius: 20px; cursor: pointer;
+  background: var(--bg2); border: 1.5px solid var(--border);
+  color: var(--muted); transition: all .15s; letter-spacing: 0.08em;
+}
+.tone-chip:hover { border-color: var(--ink2); color: var(--ink2); }
+.tone-chip.active { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+
+/* BATCH INPUT */
+.batch-note {
+  font-size: 11px; color: var(--muted);
+  background: rgba(43,108,176,0.06);
+  border: 1px solid rgba(43,108,176,0.15);
+  border-left: 3px solid var(--accent2);
+  border-radius: 4px; padding: 8px 12px; line-height: 1.6;
+}
+
+/* SAMPLE GRID */
+.sample-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.sample-btn {
+  padding: 8px 10px;
+  background: var(--bg2); border: 1.5px solid var(--border);
+  border-radius: 6px; cursor: pointer;
+  font-size: 11px; color: var(--muted);
+  transition: all .15s; text-align: left;
+  display: flex; flex-direction: column; gap: 2px;
+  font-family: 'Outfit', sans-serif;
+}
+.sample-btn:hover { border-color: var(--accent); color: var(--ink); }
+.sb-tag { font-family: 'DM Mono', monospace; font-size: 8px; color: var(--accent); letter-spacing: 0.12em; }
+
+/* RUN BUTTON */
+.btn-run {
+  width: 100%; padding: 14px;
+  background: var(--accent);
+  border: none; border-radius: 8px;
+  color: #fff;
+  font-family: 'Fraunces', serif;
+  font-size: 15px; font-weight: 600;
+  cursor: pointer; transition: all .2s;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  box-shadow: 0 4px 20px rgba(200,75,47,0.3);
+  letter-spacing: -0.01em;
+  position: relative; overflow: hidden;
+}
+.btn-run::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(135deg,rgba(255,255,255,0.15),transparent);
+  opacity: 0; transition: opacity .2s;
+}
+.btn-run:hover:not(:disabled)::after { opacity: 1; }
+.btn-run:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(200,75,47,0.4); }
+.btn-run:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+/* RIGHT PANEL */
+.right-panel { display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
+
+/* AGENT BAR */
+.agent-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 22px;
+  background: var(--ink); border-bottom: 1px solid rgba(255,255,255,0.08);
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  flex-shrink: 0; min-height: 38px;
+}
+.agent-step { color: var(--accent); font-weight: 500; letter-spacing: 0.05em; }
+.agent-msg { color: rgba(255,255,255,0.5); flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.agent-spinner {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.15);
+  border-top-color: var(--accent);
+  animation: spin .8s linear infinite; flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.agent-check { color: #68d391; font-size: 13px; flex-shrink: 0; }
+
+/* PROGRESS */
+.prog-wrap { height: 3px; background: var(--bg2); flex-shrink: 0; }
+.prog-bar { height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--warn)); transition: width .5s; }
+.prog-bar.run { animation: prog 1.6s ease-in-out infinite alternate; }
+@keyframes prog { 0% { width: 15%; margin-left: 0; } 100% { width: 45%; margin-left: 55%; } }
+
+/* TABS */
+.tab-bar {
+  display: flex; align-items: center;
+  border-bottom: 2px solid var(--border);
+  background: var(--surface); flex-shrink: 0;
+  padding: 0 20px; gap: 0;
+}
+.tab {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: 0.08em; padding: 14px 16px;
+  color: var(--muted); cursor: pointer;
+  border-bottom: 2px solid transparent; margin-bottom: -2px;
+  transition: all .2s; display: flex; align-items: center; gap: 7px;
+  white-space: nowrap;
+}
+.tab:hover { color: var(--ink2); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-badge {
+  width: 17px; height: 17px; border-radius: 50%;
+  background: var(--accent3); color: #fff;
+  font-size: 8px; display: none; align-items: center; justify-content: center;
+}
+.tab-badge.show { display: flex; }
+
+/* TAB CONTENT */
+.tab-content { flex: 1; overflow: hidden; display: none; }
+.tab-content.active { display: flex; flex-direction: column; }
+.content-scroll { flex: 1; overflow-y: auto; padding: 26px; }
+
+/* EMPTY STATE */
+.empty-state {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 14px; text-align: center; padding: 60px 40px;
+}
+.empty-glyph {
+  font-family: 'Fraunces', serif; font-size: 64px; font-weight: 300;
+  color: var(--muted2); line-height: 1; font-style: italic;
+}
+.empty-title { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 600; color: var(--muted); }
+.empty-desc { font-size: 13px; color: var(--muted2); max-width: 300px; line-height: 1.8; }
+
+/* RESULT CARDS */
+.result-card {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 22px 24px;
+  margin-bottom: 16px;
+  animation: fadeUp .35s ease both;
+}
+.result-card + .result-card { margin-top: 0; }
+.card-eyebrow {
+  font-family: 'DM Mono', monospace; font-size: 9px;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--accent2); margin-bottom: 6px;
+}
+.card-title {
+  font-family: 'Fraunces', serif; font-size: 16px;
+  font-weight: 600; color: var(--ink); margin-bottom: 10px;
+}
+.card-body { font-size: 13px; color: var(--ink2); line-height: 1.85; }
+.card-body p { margin-bottom: 10px; }
+.card-body p:last-child { margin-bottom: 0; }
+
+/* DESC OUTPUTS */
+.desc-block {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 16px;
+  overflow: hidden;
+  animation: fadeUp .3s ease both;
+}
+.desc-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+}
+.desc-product-name {
+  font-family: 'Fraunces', serif; font-size: 15px;
+  font-weight: 600; color: var(--ink);
+}
+.desc-meta {
+  display: flex; gap: 8px; align-items: center;
+}
+.desc-tag {
+  font-family: 'DM Mono', monospace; font-size: 8px;
+  padding: 3px 9px; border-radius: 20px; letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.tag-tone { background: rgba(43,108,176,0.1); color: var(--accent2); border: 1px solid rgba(43,108,176,0.2); }
+.tag-cat { background: rgba(39,103,73,0.1); color: var(--accent3); border: 1px solid rgba(39,103,73,0.2); }
+.desc-body { padding: 18px; }
+.desc-text {
+  font-size: 14px; line-height: 1.9; color: var(--ink2);
+  white-space: pre-wrap; font-family: 'Outfit', sans-serif;
+}
+.desc-score {
+  display: flex; gap: 16px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+  background: rgba(245,240,232,0.5);
+}
+.score-item {
+  display: flex; flex-direction: column; gap: 2px; flex: 1;
+}
+.score-val {
+  font-family: 'Fraunces', serif; font-size: 22px;
+  font-weight: 600; color: var(--accent3); line-height: 1;
+}
+.score-lbl {
+  font-family: 'DM Mono', monospace; font-size: 8px;
+  letter-spacing: 0.12em; color: var(--muted); text-transform: uppercase;
+}
+.desc-actions { padding: 10px 18px; display: flex; gap: 8px; border-top: 1px solid var(--border); }
+.btn-action {
+  font-family: 'DM Mono', monospace; font-size: 9px;
+  padding: 6px 14px; border-radius: 4px;
+  background: var(--bg2); border: 1px solid var(--border2);
+  color: var(--muted); cursor: pointer; transition: all .15s;
+  letter-spacing: 0.06em;
+}
+.btn-action:hover { border-color: var(--accent); color: var(--accent); }
+
+/* BULK BATCH */
+.batch-grid { display: flex; flex-direction: column; gap: 14px; }
+.batch-summary {
+  background: linear-gradient(135deg, rgba(200,75,47,0.08), rgba(43,108,176,0.06));
+  border: 1.5px solid var(--border);
+  border-radius: 10px; padding: 18px 22px;
+  display: flex; gap: 20px; align-items: center;
+  animation: fadeUp .3s ease both;
+}
+.bs-stat { text-align: center; }
+.bs-val { font-family: 'Fraunces', serif; font-size: 26px; font-weight: 600; color: var(--accent); }
+.bs-lbl { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; }
+.bs-divider { width: 1px; background: var(--border); align-self: stretch; }
+
+/* SEO PANEL */
+.seo-card {
+  background: var(--surface); border: 1.5px solid var(--border);
+  border-radius: 10px; padding: 20px 22px; margin-bottom: 14px;
+  animation: fadeUp .35s ease both;
+}
+.kw-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.kw-chip {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  padding: 4px 12px; border-radius: 20px;
+  background: var(--bg2); border: 1px solid var(--border);
+  color: var(--ink2); cursor: default;
+}
+.kw-chip.primary { background: rgba(200,75,47,0.1); border-color: rgba(200,75,47,0.25); color: var(--accent); }
+.kw-chip.secondary { background: rgba(43,108,176,0.1); border-color: rgba(43,108,176,0.2); color: var(--accent2); }
+
+/* SECTION HDR */
+.section-hd {
+  font-family: 'DM Mono', monospace; font-size: 9px;
+  letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted2);
+  display: flex; align-items: center; gap: 12px;
+  margin: 22px 0 12px;
+}
+.section-hd::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* BULK EXPORT BTN */
+.btn-export {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  padding: 8px 18px; border-radius: 6px; letter-spacing: 0.08em;
+  background: var(--ink); color: var(--bg);
+  border: none; cursor: pointer; transition: all .15s;
+}
+.btn-export:hover { background: var(--accent); }
+
+@keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-icon">🏷</div>
+    <div>
+      DescriptAI
+      <div class="brand-sub">Retail Product Description Generator</div>
+    </div>
+  </div>
+  <div class="status-pills">
+    <div class="pill live" id="pill-live"><div class="pill-dot"></div>GenAI Lab</div>
+    <div class="pill" id="pill-model">DeepSeek-V3-0324</div>
+  </div>
+</div>
+
+<div class="workspace">
+
+  <!-- LEFT PANEL: INPUT -->
+  <div class="left-panel">
+    <div class="panel-header">
+      <div class="ph-label">Product Configuration</div>
+      <div class="ph-title">Enter Product Attributes</div>
+    </div>
+    <div class="panel-body">
+
+      <!-- API KEY -->
+      <div>
+        <label class="field-label">TCS GenAI Lab API Key</label>
+        <input type="password" id="api-key" placeholder="sk-...your-key-here" value="sk-Cx_LohcL6L6cavC7c5mriw">
+      </div>
+
+      <!-- MODE -->
+      <div>
+        <label class="field-label">Input Mode</label>
+        <select id="input-mode" onchange="toggleMode()">
+          <option value="single">Single Product</option>
+          <option value="batch">Batch (JSON / CSV)</option>
+        </select>
+      </div>
+
+      <!-- SINGLE MODE -->
+      <div id="single-mode">
+        <div class="input-grid">
+          <div>
+            <label class="field-label">Product Name</label>
+            <input type="text" id="prod-name" placeholder="e.g. Wireless Earbuds Pro">
+          </div>
+          <div>
+            <label class="field-label">Category</label>
+            <input type="text" id="prod-category" placeholder="e.g. Electronics">
+          </div>
+        </div>
+        <div style="margin-top:12px">
+          <label class="field-label">Key Features (comma-separated)</label>
+          <textarea id="prod-features" rows="3" placeholder="Active noise cancellation, 30hr battery, IPX5 waterproof, Bluetooth 5.3..."></textarea>
+        </div>
+        <div class="input-grid" style="margin-top:12px">
+          <div>
+            <label class="field-label">Price</label>
+            <input type="text" id="prod-price" placeholder="$79.99">
+          </div>
+          <div>
+            <label class="field-label">Target Audience</label>
+            <input type="text" id="prod-audience" placeholder="e.g. Young professionals">
+          </div>
+        </div>
+        <div style="margin-top:12px">
+          <label class="field-label">Additional Specs (optional)</label>
+          <textarea id="prod-specs" rows="2" placeholder="Color: Midnight Black, Weight: 45g, Warranty: 1 year..."></textarea>
+        </div>
+      </div>
+
+      <!-- BATCH MODE -->
+      <div id="batch-mode" style="display:none">
+        <div class="batch-note">
+          Paste a JSON array of products or CSV with columns: name, category, features, price, audience, specs
+        </div>
+        <div style="margin-top:10px">
+          <label class="field-label">Product Data (JSON or CSV)</label>
+          <textarea id="batch-input" rows="8" placeholder='[{"name":"Yoga Mat","category":"Sports","features":"Non-slip, 6mm thick, Eco-friendly","price":"$39.99","audience":"Fitness enthusiasts"},{"name":"Ceramic Mug","category":"Kitchen","features":"12oz, Dishwasher safe, Minimalist design","price":"$18.00","audience":"Coffee lovers"}]'></textarea>
+        </div>
+        <div style="margin-top:8px">
+          <div class="sample-grid">
+            <button class="sample-btn" onclick="loadBatchSample()"><div class="sb-tag">SAMPLE DATA</div>Load 3 Products</button>
+            <button class="sample-btn" onclick="clearBatch()"><div class="sb-tag">CLEAR</div>Reset Input</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TONE -->
+      <div>
+        <label class="field-label">Tone & Style</label>
+        <div class="tone-grid">
+          <div class="tone-chip active" onclick="selectTone(this,'professional')">Professional</div>
+          <div class="tone-chip" onclick="selectTone(this,'playful')">Playful</div>
+          <div class="tone-chip" onclick="selectTone(this,'luxury')">Luxury</div>
+          <div class="tone-chip" onclick="selectTone(this,'minimalist')">Minimalist</div>
+          <div class="tone-chip" onclick="selectTone(this,'urgent')">Urgent / CTA</div>
+          <div class="tone-chip" onclick="selectTone(this,'storytelling')">Storytelling</div>
+        </div>
+      </div>
+
+      <!-- PLATFORM -->
+      <div>
+        <label class="field-label">Target Platform</label>
+        <select id="platform">
+          <option value="ecommerce">General E-commerce</option>
+          <option value="amazon">Amazon Listing</option>
+          <option value="shopify">Shopify Store</option>
+          <option value="instagram">Instagram Shop</option>
+          <option value="b2b">B2B / Wholesale</option>
+        </select>
+      </div>
+
+      <!-- SAMPLE PRODUCTS (single) -->
+      <div id="single-samples">
+        <label class="field-label">Load Sample Product</label>
+        <div class="sample-grid">
+          <button class="sample-btn" onclick="loadSample('earbuds')"><div class="sb-tag">ELECTRONICS</div>Wireless Earbuds</button>
+          <button class="sample-btn" onclick="loadSample('sneakers')"><div class="sb-tag">FOOTWEAR</div>Running Sneakers</button>
+          <button class="sample-btn" onclick="loadSample('serum')"><div class="sb-tag">BEAUTY</div>Vitamin C Serum</button>
+          <button class="sample-btn" onclick="loadSample('desk')"><div class="sb-tag">FURNITURE</div>Standing Desk</button>
+        </div>
+      </div>
+
+      <!-- RUN -->
+      <button class="btn-run" id="run-btn" onclick="runGenerator()">
+        <span>✦</span> Generate Descriptions
+      </button>
+
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL: OUTPUT -->
+  <div class="right-panel">
+
+    <!-- AGENT BAR -->
+    <div class="agent-bar">
+      <div class="agent-step" id="agent-step">—</div>
+      <div class="agent-msg" id="agent-msg">Ready · Enter product attributes and click Generate</div>
+      <div id="agent-indicator"></div>
+    </div>
+    <div class="prog-wrap"><div class="prog-bar" id="prog-bar"></div></div>
+
+    <!-- TABS -->
+    <div class="tab-bar">
+      <div class="tab active" onclick="switchTab('desc')" id="tab-desc">📝 Description <span class="tab-badge" id="badge-desc"></span></div>
+      <div class="tab" onclick="switchTab('seo')" id="tab-seo">🔍 SEO Analysis <span class="tab-badge" id="badge-seo"></span></div>
+      <div class="tab" onclick="switchTab('variants')" id="tab-variants">✨ Variants <span class="tab-badge" id="badge-variants"></span></div>
+      <div class="tab" onclick="switchTab('export')" id="tab-export">📦 Export <span class="tab-badge" id="badge-export"></span></div>
+    </div>
+
+    <!-- DESCRIPTION TAB -->
+    <div class="tab-content active" id="content-desc">
+      <div class="content-scroll" id="desc-scroll">
+        <div class="empty-state" id="desc-empty">
+          <div class="empty-glyph">✦</div>
+          <div class="empty-title">No descriptions yet</div>
+          <div class="empty-desc">Fill in product attributes on the left, choose a tone and platform, then click Generate.</div>
+        </div>
+        <div id="desc-result" style="display:none"></div>
+      </div>
+    </div>
+
+    <!-- SEO TAB -->
+    <div class="tab-content" id="content-seo">
+      <div class="content-scroll">
+        <div class="empty-state" id="seo-empty">
+          <div class="empty-glyph">🔍</div>
+          <div class="empty-title">SEO insights await</div>
+          <div class="empty-desc">Generate a description first to see keyword analysis, meta suggestions, and search optimization tips.</div>
+        </div>
+        <div id="seo-result" style="display:none"></div>
+      </div>
+    </div>
+
+    <!-- VARIANTS TAB -->
+    <div class="tab-content" id="content-variants">
+      <div class="content-scroll">
+        <div class="empty-state" id="variants-empty">
+          <div class="empty-glyph">✨</div>
+          <div class="empty-title">Style variants</div>
+          <div class="empty-desc">See A/B test-ready description variants in different tones generated automatically.</div>
+        </div>
+        <div id="variants-result" style="display:none"></div>
+      </div>
+    </div>
+
+    <!-- EXPORT TAB -->
+    <div class="tab-content" id="content-export">
+      <div class="content-scroll">
+        <div class="empty-state" id="export-empty">
+          <div class="empty-glyph">📦</div>
+          <div class="empty-title">Export ready</div>
+          <div class="empty-desc">After generating, copy or download descriptions as JSON or CSV for your catalog system.</div>
+        </div>
+        <div id="export-result" style="display:none"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<script>
+const API_BASE = "https://genailab.tcs.in";
+const MODEL = "azure_ai/genailab-maas-DeepSeek-V3-0324";
+
+let selectedTone = 'professional';
+let lastResult = null;
+
+// ── SAMPLES ──
+const SAMPLES = {
+  earbuds: {
+    name: "SoundFlow Pro X1 Wireless Earbuds",
+    category: "Consumer Electronics / Audio",
+    features: "Active Noise Cancellation (ANC), 30-hour total battery life, IPX5 waterproof, Bluetooth 5.3, 10mm drivers, Touch controls, Fast charge (10 min = 2 hrs), Multipoint connection",
+    price: "$89.99",
+    audience: "Young professionals, commuters, fitness enthusiasts",
+    specs: "Color: Midnight Black / Pearl White, Weight: 5.6g per bud, Case: 62g, Driver: 10mm dynamic, Frequency: 20Hz–20kHz"
+  },
+  sneakers: {
+    name: "AeroStride V3 Running Sneakers",
+    category: "Athletic Footwear",
+    features: "CloudFoam midsole, Breathable mesh upper, Carbon fiber plate, Reflective strips, Wide toe box, Anti-slip outsole, Machine washable",
+    price: "$149.00",
+    audience: "Serious runners, marathon training, daily joggers",
+    specs: "Sizes: US 6-14, Width: Regular & Wide, Weight: 248g (size 10), Stack height: 36mm heel / 28mm forefoot, Drop: 8mm"
+  },
+  serum: {
+    name: "GlowLab 20% Vitamin C Brightening Serum",
+    category: "Skincare / Beauty",
+    features: "20% L-Ascorbic acid, Hyaluronic acid, Vitamin E & Ferulic acid complex, Fragrance-free, Dermatologist tested, Vegan & cruelty-free, Reduces dark spots",
+    price: "$42.00",
+    audience: "Women 25-45, skincare enthusiasts, anti-aging focus",
+    specs: "Volume: 30ml, Shelf life: 12 months opened, pH: 3.0-3.5, Packaging: Airless pump bottle, Suitable for: All skin types"
+  },
+  desk: {
+    name: "VertiDesk Pro Height-Adjustable Standing Desk",
+    category: "Home Office / Furniture",
+    features: "Electric dual-motor lift, 28\"-48\" height range, Anti-collision sensor, 4 memory presets, Cable management tray, Desktop: 60\" x 30\", 350 lb weight capacity",
+    price: "$599.00",
+    audience: "Remote workers, home office users, ergonomics-conscious professionals",
+    specs: "Desktop material: Bamboo / MDF options, Frame: Steel powder-coated, Motor noise: <50dB, Assembly: 30 min"
+  }
+};
+
+const BATCH_SAMPLE = [
+  { name: "BioBlend Protein Shaker", category: "Sports & Fitness", features: "600ml capacity, Leak-proof lid, BPA-free Tritan, Built-in mixer ball, Measurement markings", price: "$14.99", audience: "Gym-goers, athletes", specs: "Colors: 6 options, Dishwasher safe" },
+  { name: "AromaDrift Ultrasonic Diffuser", category: "Home & Wellness", features: "400ml tank, 7 LED colors, Auto-shutoff, Timer settings, Whisper-quiet operation, Covers 500 sq ft", price: "$32.00", audience: "Wellness seekers, home décor lovers", specs: "Material: BPA-free PP, Noise: <25dB, Power: 24W" },
+  { name: "FreshBrew Cold Brew Maker", category: "Kitchen", features: "1-liter glass pitcher, Fine mesh filter, 24hr brewing, Airtight seal, Easy clean design, Dishwasher safe", price: "$27.99", audience: "Coffee lovers, health-conscious consumers", specs: "Capacity: 32oz, Material: Borosilicate glass, Height: 12 inches" }
+];
+
+function loadSample(key) {
+  const s = SAMPLES[key];
+  document.getElementById('input-mode').value = 'single';
+  toggleMode();
+  document.getElementById('prod-name').value = s.name;
+  document.getElementById('prod-category').value = s.category;
+  document.getElementById('prod-features').value = s.features;
+  document.getElementById('prod-price').value = s.price;
+  document.getElementById('prod-audience').value = s.audience;
+  document.getElementById('prod-specs').value = s.specs;
+}
+
+function loadBatchSample() {
+  document.getElementById('batch-input').value = JSON.stringify(BATCH_SAMPLE, null, 2);
+}
+
+function clearBatch() {
+  document.getElementById('batch-input').value = '';
+}
+
+function toggleMode() {
+  const mode = document.getElementById('input-mode').value;
+  document.getElementById('single-mode').style.display = mode === 'single' ? '' : 'none';
+  document.getElementById('batch-mode').style.display = mode === 'batch' ? '' : 'none';
+  document.getElementById('single-samples').style.display = mode === 'single' ? '' : 'none';
+}
+
+function selectTone(el, tone) {
+  document.querySelectorAll('.tone-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  selectedTone = tone;
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.getElementById('content-' + name).classList.add('active');
+}
+
+function agentLog(step, msg, done = false) {
+  document.getElementById('agent-step').textContent = step;
+  document.getElementById('agent-msg').textContent = msg;
+  const ind = document.getElementById('agent-indicator');
+  ind.innerHTML = done
+    ? `<div class="agent-check">✓</div>`
+    : `<div class="agent-spinner"></div>`;
+}
+
+function setProgress(running) {
+  const bar = document.getElementById('prog-bar');
+  bar.className = 'prog-bar' + (running ? ' run' : '');
+  if (!running) {
+    bar.style.width = '100%';
+    setTimeout(() => { bar.style.width = '0'; bar.style.transition = 'none'; setTimeout(() => bar.style.transition = 'width .5s', 50); }, 900);
+  }
+}
+
+function showBadge(id, text) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.classList.add('show');
+}
+
+async function callAPI(systemPrompt, userPrompt) {
+  const apiKey = document.getElementById('api-key').value.trim();
+  const resp = await fetch(`${API_BASE}/v1/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      max_tokens: 4096,
+      temperature: 0.7
+    })
+  });
+  const data = await resp.json();
+  if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+  return data.choices?.[0]?.message?.content || '';
+}
+
+function parseJSON(raw) {
+  const clean = raw.replace(/```json|```/g, '').trim();
+  return JSON.parse(clean);
+}
+
+function esc(s) {
+  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── MAIN GENERATOR ──
+async function runGenerator() {
+  const apiKey = document.getElementById('api-key').value.trim();
+  if (!apiKey) { alert('Please enter your TCS GenAI Lab API key.'); return; }
+
+  const mode = document.getElementById('input-mode').value;
+  const platform = document.getElementById('platform').value;
+  const tone = selectedTone;
+  let products = [];
+
+  if (mode === 'single') {
+    const name = document.getElementById('prod-name').value.trim();
+    const category = document.getElementById('prod-category').value.trim();
+    const features = document.getElementById('prod-features').value.trim();
+    if (!name || !features) { alert('Please enter at least Product Name and Key Features.'); return; }
+    products = [{
+      name,
+      category: category || 'General',
+      features,
+      price: document.getElementById('prod-price').value.trim(),
+      audience: document.getElementById('prod-audience').value.trim(),
+      specs: document.getElementById('prod-specs').value.trim()
+    }];
+  } else {
+    const raw = document.getElementById('batch-input').value.trim();
+    if (!raw) { alert('Please enter batch product data.'); return; }
+    try {
+      if (raw.startsWith('[') || raw.startsWith('{')) {
+        const parsed = JSON.parse(raw);
+        products = Array.isArray(parsed) ? parsed : [parsed];
+      } else {
+        // simple CSV parse
+        const lines = raw.split('\n').filter(l => l.trim());
+        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+        products = lines.slice(1).map(l => {
+          const vals = l.split(',');
+          const obj = {};
+          headers.forEach((h, i) => { obj[h] = (vals[i] || '').trim(); });
+          return obj;
+        });
+      }
+      if (products.length === 0) throw new Error('No products parsed');
+    } catch(e) { alert('Could not parse batch input. Please use valid JSON array.\n\n' + e.message); return; }
+  }
+
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span>⏳</span> Generating…';
+  setProgress(true);
+
+  // Reset outputs
+  ['desc-empty','seo-empty','variants-empty','export-empty'].forEach(id => {
+    document.getElementById(id).style.display = '';
+  });
+  document.getElementById('desc-result').style.display = 'none';
+  document.getElementById('desc-result').innerHTML = '';
+  document.getElementById('seo-result').style.display = 'none';
+  document.getElementById('seo-result').innerHTML = '';
+  document.getElementById('variants-result').style.display = 'none';
+  document.getElementById('variants-result').innerHTML = '';
+  document.getElementById('export-result').style.display = 'none';
+  document.getElementById('export-result').innerHTML = '';
+  ['badge-desc','badge-seo','badge-variants','badge-export'].forEach(id => {
+    document.getElementById(id).classList.remove('show');
+    document.getElementById(id).textContent = '';
+  });
+
+  try {
+
+    // STEP 1: Generate Descriptions
+    agentLog('[1/3]', `Crafting ${tone} product descriptions for ${products.length} product(s)…`);
+
+    const productsJSON = JSON.stringify(products, null, 2);
+    const descRaw = await callAPI(
+      `You are an expert retail copywriter and e-commerce content strategist with 15 years of experience creating high-converting product descriptions. You write in a ${tone} tone for ${platform} platforms. Always respond with valid JSON only — no markdown, no preamble.`,
+      `Generate compelling product descriptions for the following products. Each description should be optimized for ${platform}, written in a ${tone} tone, and designed to convert browsers into buyers.
+
+PRODUCTS:
+${productsJSON}
+
+Return ONLY valid JSON in this exact format:
+{
+  "descriptions": [
+    {
+      "product_name": "<name>",
+      "category": "<category>",
+      "tone_used": "${tone}",
+      "platform": "${platform}",
+      "short_description": "<1 punchy sentence, max 20 words>",
+      "main_description": "<2-3 compelling paragraphs, 120-180 words total>",
+      "bullet_points": ["<benefit 1>", "<benefit 2>", "<benefit 3>", "<benefit 4>", "<benefit 5>"],
+      "call_to_action": "<strong CTA sentence>",
+      "quality_score": <integer 1-100>,
+      "readability_score": <integer 1-100>,
+      "conversion_score": <integer 1-100>
+    }
+  ]
+}`
+    );
+
+    const descData = parseJSON(descRaw);
+    renderDescriptions(descData.descriptions, tone, platform);
+    agentLog('[1/3]', `${descData.descriptions.length} description(s) generated`, true);
+    showBadge('badge-desc', descData.descriptions.length.toString());
+    lastResult = descData.descriptions;
+
+    // STEP 2: SEO Analysis
+    agentLog('[2/3]', 'Running SEO keyword analysis and meta tag generation…');
+
+    const seoRaw = await callAPI(
+      `You are an expert SEO strategist specializing in e-commerce product optimization. Analyze product descriptions and return actionable SEO insights as valid JSON only — no markdown.`,
+      `Analyze these products for SEO optimization on a ${platform} platform:
+
+${productsJSON}
+
+Return ONLY valid JSON:
+{
+  "seo_analysis": [
+    {
+      "product_name": "<name>",
+      "meta_title": "<60-char SEO title>",
+      "meta_description": "<155-char meta description>",
+      "primary_keywords": ["<kw1>", "<kw2>", "<kw3>"],
+      "secondary_keywords": ["<kw1>", "<kw2>", "<kw3>", "<kw4>"],
+      "search_intent": "<informational|transactional|navigational>",
+      "seo_score": <integer 1-100>,
+      "improvement_tips": ["<tip1>", "<tip2>", "<tip3>"]
+    }
+  ]
+}`
+    );
+
+    const seoData = parseJSON(seoRaw);
+    renderSEO(seoData.seo_analysis);
+    agentLog('[2/3]', 'SEO analysis complete', true);
+    showBadge('badge-seo', '✓');
+
+    // STEP 3: Variants
+    agentLog('[3/3]', 'Generating A/B test variants in alternate tones…');
+
+    const firstProduct = products[0];
+    const altTones = ['playful','luxury','minimalist','urgent'].filter(t => t !== tone).slice(0, 2);
+
+    const varRaw = await callAPI(
+      `You are an expert copywriter skilled in writing product descriptions across diverse brand voices. Return valid JSON only — no markdown.`,
+      `Write A/B test variants of this product description in 2 different tones for testing purposes.
+
+PRODUCT:
+${JSON.stringify(firstProduct, null, 2)}
+
+ORIGINAL TONE: ${tone}
+VARIANT TONES: ${altTones.join(', ')}
+
+Return ONLY valid JSON:
+{
+  "product_name": "<name>",
+  "variants": [
+    {
+      "tone": "<tone name>",
+      "short_description": "<punchy 1-liner>",
+      "main_description": "<120-150 word description>",
+      "call_to_action": "<CTA>",
+      "best_for": "<audience / scenario this tone suits>"
+    }
+  ]
+}`
+    );
+
+    const varData = parseJSON(varRaw);
+    renderVariants(varData, descData.descriptions[0]);
+    agentLog('[3/3]', `${varData.variants.length} A/B variants ready`, true);
+    showBadge('badge-variants', varData.variants.length.toString());
+
+    // Render Export
+    renderExport(descData.descriptions, seoData.seo_analysis);
+    showBadge('badge-export', '↓');
+
+    setProgress(false);
+    switchTab('desc');
+    document.getElementById('pill-model').textContent = `DeepSeek-V3 · ${descData.descriptions.length} SKU(s)`;
+
+  } catch(err) {
+    agentLog('ERROR', err.message, true);
+    document.getElementById('agent-indicator').innerHTML = `<span style="color:var(--accent);font-size:16px">✗</span>`;
+    setProgress(false);
+    alert('Error: ' + err.message + '\n\nCheck your TCS GenAI Lab API key and try again.');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span>✦</span> Generate Descriptions';
+  }
+}
+
+// ── RENDER DESCRIPTIONS ──
+function renderDescriptions(descs, tone, platform) {
+  document.getElementById('desc-empty').style.display = 'none';
+  const el = document.getElementById('desc-result');
+  el.style.display = '';
+
+  if (descs.length > 1) {
+    const avgQ = Math.round(descs.reduce((s,d) => s + d.quality_score, 0) / descs.length);
+    const avgC = Math.round(descs.reduce((s,d) => s + d.conversion_score, 0) / descs.length);
+    el.innerHTML = `
+      <div class="batch-summary">
+        <div class="bs-stat"><div class="bs-val">${descs.length}</div><div class="bs-lbl">Products</div></div>
+        <div class="bs-divider"></div>
+        <div class="bs-stat"><div class="bs-val" style="color:var(--accent3)">${avgQ}%</div><div class="bs-lbl">Avg Quality</div></div>
+        <div class="bs-divider"></div>
+        <div class="bs-stat"><div class="bs-val" style="color:var(--accent2)">${avgC}%</div><div class="bs-lbl">Avg Conversion</div></div>
+        <div class="bs-divider"></div>
+        <div class="bs-stat"><div class="bs-val" style="color:var(--warn);font-size:16px;margin-top:2px">${esc(tone)}</div><div class="bs-lbl">Tone</div></div>
+      </div>
+      <div class="section-hd">Generated Descriptions</div>
+    ` + descs.map((d, i) => buildDescCard(d, i)).join('');
+  } else {
+    el.innerHTML = descs.map((d, i) => buildDescCard(d, i)).join('');
+  }
+}
+
+function buildDescCard(d, i) {
+  const qColor = d.quality_score >= 80 ? 'var(--accent3)' : d.quality_score >= 60 ? 'var(--warn)' : 'var(--accent)';
+  const cColor = d.conversion_score >= 80 ? 'var(--accent3)' : d.conversion_score >= 60 ? 'var(--warn)' : 'var(--accent)';
+  const bullets = (d.bullet_points || []).map(b => `<li style="margin-bottom:5px">${esc(b)}</li>`).join('');
+
+  const fullText = `${d.short_description}\n\n${d.main_description}\n\nKey Benefits:\n${(d.bullet_points||[]).map(b=>'• '+b).join('\n')}\n\n${d.call_to_action}`;
+
+  return `
+    <div class="desc-block" style="animation-delay:${i*0.1}s">
+      <div class="desc-header">
+        <div class="desc-product-name">${esc(d.product_name)}</div>
+        <div class="desc-meta">
+          <span class="desc-tag tag-tone">${esc(d.tone_used)}</span>
+          <span class="desc-tag tag-cat">${esc(d.platform)}</span>
+        </div>
+      </div>
+      <div class="desc-body">
+        <p style="font-weight:600;font-size:15px;color:var(--ink);margin-bottom:12px;font-style:italic">"${esc(d.short_description)}"</p>
+        <div class="desc-text">${esc(d.main_description)}</div>
+        <ul style="margin:14px 0 14px 18px;font-size:13px;color:var(--ink2);line-height:1.8">${bullets}</ul>
+        <p style="font-weight:600;color:var(--accent);font-size:13px">→ ${esc(d.call_to_action)}</p>
+      </div>
+      <div class="desc-score">
+        <div class="score-item">
+          <div class="score-val" style="color:${qColor}">${d.quality_score}</div>
+          <div class="score-lbl">Quality Score</div>
+        </div>
+        <div class="score-item">
+          <div class="score-val">${d.readability_score}</div>
+          <div class="score-lbl">Readability</div>
+        </div>
+        <div class="score-item">
+          <div class="score-val" style="color:${cColor}">${d.conversion_score}</div>
+          <div class="score-lbl">Conversion Est.</div>
+        </div>
+      </div>
+      <div class="desc-actions">
+        <button class="btn-action" onclick="copyText(\`${fullText.replace(/`/g,"'")}\`, this)">Copy Full Text</button>
+        <button class="btn-action" onclick="copyText(\`${esc(d.main_description).replace(/`/g,"'")}\`, this)">Copy Description</button>
+        <button class="btn-action" onclick="copyText(\`${esc(d.call_to_action).replace(/`/g,"'")}\`, this)">Copy CTA</button>
+      </div>
+    </div>
+  `;
+}
+
+// ── RENDER SEO ──
+function renderSEO(seoList) {
+  document.getElementById('seo-empty').style.display = 'none';
+  const el = document.getElementById('seo-result');
+  el.style.display = '';
+
+  el.innerHTML = seoList.map((s, i) => {
+    const primaryKws = (s.primary_keywords || []).map(k => `<div class="kw-chip primary">${esc(k)}</div>`).join('');
+    const secKws = (s.secondary_keywords || []).map(k => `<div class="kw-chip secondary">${esc(k)}</div>`).join('');
+    const tips = (s.improvement_tips || []).map(t =>
+      `<div style="padding:6px 10px;border-left:3px solid var(--accent);margin-bottom:6px;font-size:12px;color:var(--ink2);line-height:1.6">${esc(t)}</div>`
+    ).join('');
+    const scoreColor = s.seo_score >= 75 ? 'var(--accent3)' : s.seo_score >= 50 ? 'var(--warn)' : 'var(--accent)';
+
+    return `
+      <div class="seo-card" style="animation-delay:${i*0.1}s">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+          <div>
+            <div class="card-eyebrow">SEO Analysis</div>
+            <div class="card-title">${esc(s.product_name)}</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-family:'Fraunces',serif;font-size:28px;font-weight:600;color:${scoreColor};line-height:1">${s.seo_score}</div>
+            <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:0.1em">SEO SCORE</div>
+          </div>
+        </div>
+
+        <div style="margin-bottom:14px">
+          <div class="field-label" style="margin-bottom:4px">Meta Title</div>
+          <div style="font-size:13px;color:var(--accent2);font-family:'DM Mono',monospace;background:var(--bg2);padding:8px 12px;border-radius:4px;border:1px solid var(--border)">${esc(s.meta_title)}</div>
+        </div>
+        <div style="margin-bottom:14px">
+          <div class="field-label" style="margin-bottom:4px">Meta Description</div>
+          <div style="font-size:12px;color:var(--ink2);background:var(--bg2);padding:8px 12px;border-radius:4px;border:1px solid var(--border);line-height:1.6">${esc(s.meta_description)}</div>
+        </div>
+
+        <div class="field-label">Primary Keywords</div>
+        <div class="kw-list">${primaryKws}</div>
+        <div class="field-label" style="margin-top:10px">Secondary Keywords</div>
+        <div class="kw-list">${secKws}</div>
+
+        <div class="section-hd" style="margin-top:14px">Optimization Tips</div>
+        ${tips}
+
+        <div style="margin-top:10px">
+          <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">SEARCH INTENT:</span>
+          <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--accent2);margin-left:8px;text-transform:uppercase">${esc(s.search_intent)}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ── RENDER VARIANTS ──
+function renderVariants(varData, originalDesc) {
+  document.getElementById('variants-empty').style.display = 'none';
+  const el = document.getElementById('variants-result');
+  el.style.display = '';
+
+  const originalHTML = originalDesc ? `
+    <div class="result-card" style="border-color:rgba(200,75,47,0.3);background:rgba(200,75,47,0.04)">
+      <div class="card-eyebrow">Original · ${esc(originalDesc.tone_used)}</div>
+      <div class="card-title">${esc(originalDesc.product_name)}</div>
+      <div class="card-body">${esc(originalDesc.short_description)}</div>
+    </div>
+  ` : '';
+
+  const varHTML = (varData.variants || []).map((v, i) => `
+    <div class="result-card" style="animation-delay:${(i+1)*0.1}s">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div class="card-eyebrow">Variant ${String.fromCharCode(65+i)} · ${esc(v.tone)}</div>
+        <span class="desc-tag tag-cat" style="font-size:9px">${esc(v.best_for)}</span>
+      </div>
+      <div class="card-title" style="font-style:italic;font-size:14px;margin-bottom:8px">"${esc(v.short_description)}"</div>
+      <div class="card-body" style="margin-bottom:12px">${esc(v.main_description)}</div>
+      <div style="font-weight:600;color:var(--accent);font-size:12px">→ ${esc(v.call_to_action)}</div>
+      <div style="margin-top:12px;display:flex;gap:8px">
+        <button class="btn-action" onclick="copyText(\`${v.main_description.replace(/`/g,"'")}\`, this)">Copy Variant</button>
+      </div>
+    </div>
+  `).join('');
+
+  el.innerHTML = `
+    <div class="section-hd">Original Description</div>
+    ${originalHTML}
+    <div class="section-hd">A/B Test Variants</div>
+    <div class="batch-note" style="margin-bottom:14px">These variants use different tones for A/B testing. Use your analytics platform to test which converts best for your audience.</div>
+    ${varHTML}
+  `;
+}
+
+// ── RENDER EXPORT ──
+function renderExport(descs, seoList) {
+  document.getElementById('export-empty').style.display = 'none';
+  const el = document.getElementById('export-result');
+  el.style.display = '';
+
+  // Build export objects
+  const exportData = descs.map((d, i) => ({
+    product_name: d.product_name,
+    category: d.category,
+    short_description: d.short_description,
+    main_description: d.main_description,
+    bullet_points: d.bullet_points,
+    call_to_action: d.call_to_action,
+    quality_score: d.quality_score,
+    conversion_score: d.conversion_score,
+    meta_title: seoList[i]?.meta_title || '',
+    meta_description: seoList[i]?.meta_description || '',
+    primary_keywords: (seoList[i]?.primary_keywords || []).join(', ')
+  }));
+
+  const jsonStr = JSON.stringify(exportData, null, 2);
+
+  // CSV
+  const csvHeaders = ['product_name','category','short_description','main_description','call_to_action','quality_score','conversion_score','meta_title','meta_description','primary_keywords'];
+  const csvRows = exportData.map(d =>
+    csvHeaders.map(h => `"${(d[h]||'').toString().replace(/"/g,'""')}"`).join(',')
+  );
+  const csvStr = [csvHeaders.join(','), ...csvRows].join('\n');
+
+  el.innerHTML = `
+    <div class="result-card">
+      <div class="card-eyebrow">Export Ready</div>
+      <div class="card-title">${descs.length} Product Description(s)</div>
+      <div class="card-body" style="margin-bottom:16px">Download your generated descriptions in JSON (for API integrations) or CSV (for spreadsheets & bulk upload to Shopify, WooCommerce, etc.)</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn-export" onclick="downloadFile('product-descriptions.json', 'application/json', \`${jsonStr.replace(/`/g,"'")}\`)">⬇ Download JSON</button>
+        <button class="btn-export" onclick="downloadFile('product-descriptions.csv', 'text/csv', \`${csvStr.replace(/`/g,"'")}\`)">⬇ Download CSV</button>
+        <button class="btn-export" onclick="copyText(\`${jsonStr.replace(/`/g,"'")}\`, this)" style="background:var(--surface2);color:var(--ink);border:1.5px solid var(--border)">Copy JSON</button>
+      </div>
+    </div>
+
+    <div class="section-hd">Preview</div>
+    <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:8px;padding:16px;overflow:auto;max-height:380px">
+      <pre style="font-family:'DM Mono',monospace;font-size:10px;color:var(--ink2);line-height:1.8;white-space:pre-wrap">${esc(jsonStr)}</pre>
+    </div>
+  `;
+}
+
+function copyText(text, btn) {
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.style.borderColor = 'var(--accent3)';
+    btn.style.color = 'var(--accent3)';
+    setTimeout(() => {
+      btn.textContent = orig;
+      btn.style.borderColor = '';
+      btn.style.color = '';
+    }, 1800);
+  });
+}
+
+function downloadFile(filename, type, content) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+// Load a default sample
+loadSample('earbuds');
+</script>
+</body>
+</html>
